@@ -2,15 +2,22 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 
+function corsOrigins(): string[] {
+  const raw = process.env.CORS_ORIGINS?.trim();
+  if (raw) {
+    return raw
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean);
+  }
+  return ['http://localhost:5175', 'http://127.0.0.1:5175'];
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // CORS: FE dev http://localhost:5175 (Vite). Tránh origin '*' kết hợp credentials.
   app.enableCors({
-    origin: [
-      'http://localhost:5175',
-      'http://127.0.0.1:5175',
-    ],
+    origin: corsOrigins(),
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
