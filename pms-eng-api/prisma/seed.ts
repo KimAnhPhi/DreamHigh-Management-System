@@ -26,7 +26,7 @@ async function main() {
   
   const adminRole = await prisma.role.findUnique({ where: { code: 'ADMIN' } });
 
-  // 2. Create Master Admin SystemUser
+  // 2. System admin (ADMIN + isSuperAdmin). Stored email is lowercase; LoginDto normalizes input to lowercase.
   const adminEmail = 'dreamhigh.edu.ltd@gmail.com';
   const plainTextPassword = 'DreamHigh123@';
   
@@ -61,12 +61,23 @@ async function main() {
       console.log(`✅ Default admin created: ${adminEmail}`);
     }
   } else {
-    // Force reset password to match the requested seed password if admin exists
     await prisma.systemUser.update({
       where: { id: existingAdmin.id },
-      data: { passwordHash },
+      data: { passwordHash, isSuperAdmin: true },
     });
-    console.log(`✅ Default admin already exists. Password force-updated to default.`);
+    if (adminRole) {
+      const hasAdminRole = await prisma.userRole.findFirst({
+        where: { userId: existingAdmin.id, roleId: adminRole.id },
+      });
+      if (!hasAdminRole) {
+        await prisma.userRole.create({
+          data: { userId: existingAdmin.id, roleId: adminRole.id },
+        });
+      }
+    }
+    console.log(
+      'Default admin already exists. Password, super-admin flag, and ADMIN role synchronized.',
+    );
   }
 
   // 3. Create Default Branch

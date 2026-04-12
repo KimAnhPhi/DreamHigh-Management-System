@@ -1,9 +1,8 @@
 import axios from 'axios';
+import { getApiBaseURL } from '../config/apiBase';
 import { useAuthStore } from '../stores/useAuthStore';
 
-const apiBaseURL =
-  import.meta.env.VITE_API_URL ||
-  (import.meta.env.DEV ? '/api' : 'http://localhost:3000/api');
+const apiBaseURL = getApiBaseURL();
 
 // Create generic Axios instance
 export const apiClient = axios.create({

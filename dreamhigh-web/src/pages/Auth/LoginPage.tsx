@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
+import { apiNetworkErrorMessage, isApiBaseConfigured, missingProductionApiUrlMessage } from '../../config/apiBase';
 import { apiClient } from '../../services/apiClient';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { Button } from '../../design-system/components/ui/Button';
@@ -73,9 +74,7 @@ export default function LoginPage() {
         error.code === 'ERR_NETWORK' ||
         error.message === 'Network Error'
       ) {
-        setErrorMsg(
-          'Không kết nối được API. Hãy chạy backend (NestJS) tại pms-eng-api: npm run start:dev — API mặc định http://localhost:3000.',
-        );
+        setErrorMsg(apiNetworkErrorMessage());
         return;
       }
     }
@@ -84,6 +83,10 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginFormData) => {
     setErrorMsg('');
+    if (import.meta.env.PROD && !isApiBaseConfigured()) {
+      setErrorMsg(missingProductionApiUrlMessage());
+      return;
+    }
     try {
       const response = await apiClient.post('/auth/login', {
         email: data.email,
@@ -105,6 +108,10 @@ export default function LoginPage() {
       return;
     }
     setErrorMsg('');
+    if (import.meta.env.PROD && !isApiBaseConfigured()) {
+      setErrorMsg(missingProductionApiUrlMessage());
+      return;
+    }
     setGoogleBusy(true);
     try {
       const response = await apiClient.post('/auth/google', { idToken });

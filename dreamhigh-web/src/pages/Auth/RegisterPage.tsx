@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
+import { apiNetworkErrorMessage, isApiBaseConfigured, missingProductionApiUrlMessage } from '../../config/apiBase';
 import { apiClient } from '../../services/apiClient';
 import { Button } from '../../design-system/components/ui/Button';
 import { Card } from '../../design-system/components/ui/Card';
@@ -37,6 +38,10 @@ export default function RegisterPage() {
   const onSubmit = async (data: RegisterFormData) => {
     setErrorMsg('');
     setSuccessMsg('');
+    if (import.meta.env.PROD && !isApiBaseConfigured()) {
+      setErrorMsg(missingProductionApiUrlMessage());
+      return;
+    }
     try {
       await apiClient.post('/auth/register', {
         fullName: data.fullName,
@@ -61,9 +66,7 @@ export default function RegisterPage() {
           error.code === 'ERR_NETWORK' ||
           error.message === 'Network Error'
         ) {
-          setErrorMsg(
-            'Không kết nối được API. Hãy chạy backend tại pms-eng-api: npm run start:dev.'
-          );
+          setErrorMsg(apiNetworkErrorMessage());
           return;
         }
       }
