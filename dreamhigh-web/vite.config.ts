@@ -19,4 +19,9 @@ export default defineConfig({
       },
     },
   },
+  preview: {
+    host: '0.0.0.0',
+    // Render (and similar) forward Host; vite preview blocks unknown hosts by default
+    allowedHosts: true,
+  },
 })
