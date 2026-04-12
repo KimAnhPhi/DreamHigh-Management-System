@@ -1,5 +1,19 @@
-/** Resolved API base URL (no trailing slash). Empty in production when VITE_API_URL was not set at build time. */
+function getRuntimeInjectedBase(): string {
+  if (typeof window === 'undefined') return '';
+  const v = (window as unknown as { __DH_API_BASE__?: unknown }).__DH_API_BASE__;
+  if (typeof v === 'string' && v.trim() !== '') {
+    return v.trim().replace(/\/$/, '');
+  }
+  return '';
+}
+
+/**
+ * API base (no trailing slash).
+ * Order: runtime inject (Render start script) → Vite build env → dev proxy.
+ */
 export function getApiBaseURL(): string {
+  const injected = getRuntimeInjectedBase();
+  if (injected) return injected;
   const raw = import.meta.env.VITE_API_URL;
   if (typeof raw === 'string' && raw.trim() !== '') {
     return raw.trim().replace(/\/$/, '');
@@ -16,7 +30,7 @@ export function isApiBaseConfigured(): boolean {
 
 export function missingProductionApiUrlMessage(): string {
   return (
-    'Chưa cấu hình VITE_API_URL khi build FE. Trên Render: Environment → thêm VITE_API_URL = URL public của backend kèm /api (ví dụ https://your-api.onrender.com/api), sau đó deploy lại.'
+    'Chưa có URL API cho FE. Trên Render (service frontend): Environment → thêm VITE_API_URL hoặc PUBLIC_API_URL = URL public của backend kèm /api (ví dụ https://your-api.onrender.com/api), sau đó Save và Manual Deploy (hoặc restart) để áp dụng.'
   );
 }
 
