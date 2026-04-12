@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --open",
     "build": "tsc -b && vite build",
+    "start": "node scripts/serve-dist.mjs",
     "lint": "eslint .",
     "logo:transparent": "node scripts/make-logo-transparent.mjs",
     "preview": "vite preview"
