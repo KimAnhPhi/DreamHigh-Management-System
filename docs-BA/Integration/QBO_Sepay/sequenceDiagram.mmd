@@ -1,0 +1,18 @@
+sequenceDiagram
+    participant User as DTV
+    participant FE as Frontend
+    participant BE as Backend
+
+    User->>FE: 1. Mo man Dashboard sau khi dang nhap
+    FE->>FE: 2. Hien thuc tieu de va breadcrumb lay ten user tu store cuc bo
+    FE->>BE: 3. GET /api/users kem Bearer token
+    BE->>BE: 4. Xac thuc JWT RoleGuard kiem tra ADMIN doc bang system_users gom vai tro
+    BE-->>FE: 5. Tra ve goi chuan danh sach nguoi dung he thong
+    FE->>BE: 6. GET /api/leads kem Bearer token
+    BE->>BE: 7. Xac thuc JWT kiem tra ADMIN MANAGER STAFF doc bang leads
+    BE-->>FE: 8. Tra ve danh sach lead
+    FE->>BE: 9. GET cac API thong ke hoc vien va lop hoc phu hop RBAC
+    BE->>BE: 10. Xac thuc JWT doc bang students training_classes theo nghiep vu dem hoac loc
+    BE-->>FE: 11. Tra ve so lieu hoac ban ghi cho thong ke
+    FE->>FE: 12. Tinh toan hien thuc StatCard va widget bieu do thong bao tinh
+    FE-->>User: 13. Hien thi Dashboard day du

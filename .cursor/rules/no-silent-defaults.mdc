@@ -1,0 +1,31 @@
+---
+description: Cấm tự gán giá trị mặc định (0, 30, "") khi thiếu/null — phải hỏi user hoặc xử lý rõ (validate/throw)
+alwaysApply: true
+---
+
+# Không tự ý “đặt mặc định” khi thiếu / null / không tìm thấy
+
+## [CRITICAL] Cấm magic default
+
+- **NEVER:** tự gán số hoặc chuỗi mặc định tùy tiện khi giá trị **không có**, **null**, **undefined**, hoặc **lookup không ra** — ví dụ: `?? 0`, `?? 30`, `|| ""`, `|| []` để “cho chạy được” mà **không có yêu cầu nghiệp vụ rõ ràng**.
+- **NEVER:** giả định “hợp lý” (ví dụ timeout 30s, page size 10) **nếu user/stakeholder chưa nói** — đó vẫn là default do AI bịa.
+
+## [CRITICAL] Khi cần default — phải hỏi user
+
+- **ALWAYS:** nếu nghiệp vụ **cần** một giá trị mặc định khi thiếu dữ liệu → **dừng và hỏi lại user** (một câu rõ ràng): giá trị mặc định mong muốn là gì, có được phép fallback không, fallback là bao nhiêu.
+- **ALWAYS:** chỉ sau khi user **xác nhận** mới được đưa default đó vào code (và nên có comment hoặc hằng số có tên: `const DEFAULT_PAGE_SIZE = …` theo đúng câu trả lời).
+
+## [HIGH] Ưu tiên xử lý an toàn thay vì bịa số
+
+- **PREFER:** **validate** đầu vào (zod/yup): thiếu field bắt buộc → lỗi 400 / message rõ, **không** tự điền.
+- **PREFER:** **throw** hoặc return lỗi có ý nghĩa khi dữ liệu bắt buộc không có (không nuốt lỗi bằng `?? 0`).
+- **PREFER:** kiểu **`undefined` / optional** và để tầng gọi quyết định — không tự quyết thay user.
+- **PREFER:** nếu API/spec đã ghi default — **chỉ** dùng đúng giá trị đã ghi trong tài liệu, không thêm default khác.
+
+## Gợi ý cách hỏi user (mẫu)
+
+> “Giá trị X khi không có / null cần xử lý thế nào: (A) báo lỗi, (B) dùng mặc định — bạn chọn giá trị cụ thể là bao nhiêu?”
+
+---
+
+**Tóm tắt cho AI:** không được tự set `0`, `30`, `""`, v.v. để tránh lỗi biên; nếu thiếu quy tắc nghiệp vụ thì **hỏi user** trước khi viết fallback.

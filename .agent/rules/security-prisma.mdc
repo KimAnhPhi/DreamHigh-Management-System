@@ -1,0 +1,99 @@
+---
+description: Quy tắc bảo mật cho project dùng Prisma ORM — SQL injection, secrets, validation, auth, XSS, logging, dependencies
+alwaysApply: true
+---
+
+# SECURITY RULES — project dùng Prisma ORM
+
+## [CRITICAL] SQL Injection — Prisma
+
+- **NEVER:** dùng `$queryRaw` / `$executeRaw` khi Prisma Client API làm được.
+
+```ts
+// Sai
+prisma.$executeRaw`UPDATE User SET name = ${name}`;
+// Đúng
+prisma.user.update({ where: { id }, data: { name } });
+```
+
+- **NEVER:** đặt dấu nháy quanh biến trong `$queryRaw` tagged template.
+
+```ts
+// Sai — dấu nháy thừa = injection
+prisma.$queryRaw`WHERE email = '${email}'`;
+// Đúng
+prisma.$queryRaw`WHERE email = ${email}`;
+```
+- **NEVER:** dùng `Prisma.raw()` với input chưa validate.
+  - Sai: `Prisma.raw(req.query.col)`
+  - Đúng: whitelist trước → rồi mới `Prisma.raw(validatedCol)`
+- **ALWAYS:** với tên cột / `ORDER BY` động → whitelist bằng const array:
+
+```ts
+const ALLOWED = ["name", "email", "createdAt"] as const;
+if (!ALLOWED.includes(col)) throw new Error("invalid column");
+prisma.$queryRaw`SELECT * FROM User ORDER BY ${Prisma.raw(col)}`;
+```
+
+- **PREFER:** Prisma Client API (`findFirst`, `update`, `create`…) — không cần lo injection.
+
+## [CRITICAL] No Hardcoded Secrets
+
+- **NEVER:** hardcode API key, password, token, secret vào source code.
+- **NEVER:** commit file `.env`, `credentials.json` vào git.
+- **ALWAYS:** đọc từ `process.env`.
+- **ALWAYS:** thêm `.env` vào `.gitignore` khi tạo project mới.
+  - Sai: `const SECRET = "abc123"`
+  - Đúng: `const SECRET = process.env.SECRET`
+
+## [CRITICAL] Input Validation
+
+- **NEVER:** tin tưởng input từ user, form, URL param, header.
+- **NEVER:** pass input thẳng vào `eval()`, `exec()`, `child_process`.
+- **ALWAYS:** validate kiểu dữ liệu, độ dài, format trước khi xử lý.
+- **ALWAYS:** validate phía server, không chỉ client.
+- **PREFER:** dùng zod / yup để parse và validate input.
+
+## [HIGH] Authentication & Authorization
+
+- **NEVER:** tự implement hash password — dùng bcrypt / argon2.
+- **NEVER:** lưu plain-text password dù ở DB hay log.
+- **NEVER:** để route nhạy cảm không có auth check.
+- **ALWAYS:** kiểm tra auth + ownership trước khi trả / sửa dữ liệu.
+  - Sai: `prisma.post.findUnique({ where: { id } })`
+  - Đúng: `prisma.post.findUnique({ where: { id, authorId: session.userId } })`
+- **ALWAYS:** dùng JWT với expiry ngắn (15–60 phút).
+- **ALWAYS:** áp dụng least-privilege — default deny.
+
+## [HIGH] Secure Output / XSS Prevention
+
+- **NEVER:** render user input trực tiếp vào HTML không qua escape.
+- **NEVER:** dùng `innerHTML` / `dangerouslySetInnerHTML` với dữ liệu từ DB hoặc user.
+- **ALWAYS:** dùng `textContent` (JS) hoặc để framework tự escape (React, Next.js).
+- **ALWAYS:** set security headers: CSP, X-Frame-Options, HSTS.
+
+## [HIGH] Error Handling & Logging
+
+- **NEVER:** trả Prisma error / stack trace ra HTTP response.
+- **NEVER:** log password, token, PII.
+- **NEVER:** dùng empty `catch` block.
+- **ALWAYS:** bắt `PrismaClientKnownRequestError`, trả generic message cho user.
+
+```ts
+try {
+  // ...
+} catch (e) {
+  if (e instanceof Prisma.PrismaClientKnownRequestError) {
+    if (e.code === "P2002")
+      return res.status(409).json({ error: "already exists" });
+  }
+  logger.error(e); // log nội bộ
+  return res.status(500).json({ error: "internal server error" });
+}
+```
+
+## [MEDIUM] Dependency Safety
+
+- **NEVER:** dùng wildcard (`*`) để pin version trong production.
+- **ALWAYS:** pin exact version trong `package.json`.
+- **SUGGEST:** chạy `npm audit` trước khi deploy.

@@ -1,0 +1,23 @@
+# Dependencies & build
+node_modules/
+dist/
+dist-ssr/
+build/
+.next/
+*.tsbuildinfo
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Logs & OS
+*.log
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Misc
+*.local
+coverage/

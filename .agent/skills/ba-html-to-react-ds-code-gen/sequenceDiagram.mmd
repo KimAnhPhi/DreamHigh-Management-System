@@ -1,0 +1,30 @@
+sequenceDiagram
+    participant Admin as DTV_Admin
+    participant FE as Frontend
+    participant BE as Backend
+    participant QBO as QuickBooks_Online
+    participant SepayAuth as SePay_Token
+
+    Note over Admin,SepayAuth: AUTH
+    Admin->>FE: Ket noi QBO lan dau
+    FE->>BE: GET URL OAuth Intuit
+    BE->>QBO: Redirect Authorization Code flow
+    QBO-->>BE: Callback code
+    BE->>QBO: Exchange token luu realmId refresh token
+    BE-->>FE: Trang thai ket noi thanh cong
+
+    Admin->>FE: Nhap SePay credentials hoac trigger lay token
+    FE->>BE: POST lay Bearer Speaker API
+    BE->>SepayAuth: Client Credentials
+    SepayAuth-->>BE: access_token cached TTL
+
+    Note over Admin,SepayAuth: DATA MAPPING
+    Admin->>FE: Dong bo KH hoac cap nhat ban do QBO
+    FE->>BE: POST sync Student Parent sang QBO Customer
+    BE->>QBO: Create hoac Find Customer
+    QBO-->>BE: qboCustomerId
+    BE->>BE: Luu mapping ban ghi student parent
+
+    Admin->>FE: Cau hinh hardwareId theo chi nhanh
+    FE->>BE: PATCH branch sepay hardwareId
+    BE->>BE: Persist Branch extension hoac config table

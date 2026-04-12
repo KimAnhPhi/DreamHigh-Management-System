@@ -1,0 +1,536 @@
+// DreamHigh — Quản lý Đào tạo Trung tâm Tiếng Anh
+// Nguồn: docs-BA/ERD/ba-erd-QuanLyDaoTao_TrungTamTiengAnh.md (v1.2.0)
+// Kiến trúc: _bmad-output/planning-artifacts/architecture (PostgreSQL + Prisma)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum BranchStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum RoomStatus {
+  AVAILABLE
+  MAINTENANCE
+  INACTIVE
+}
+
+enum SystemUserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  CONVERTED
+  LOST
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum StudentStatus {
+  ACTIVE
+  RESERVED
+  DROPPED
+  GRADUATED
+}
+
+enum CatalogStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum TrainingClassStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum ClassStudentStatus {
+  ACTIVE
+  COMPLETED
+  DROPPED
+  TRANSFERRED
+}
+
+enum SessionStatus {
+  NORMAL
+  RESCHEDULED
+  CANCELLED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT_EXCUSED
+  ABSENT_UNEXCUSED
+}
+
+enum InvoicePaymentStatus {
+  PENDING
+  PARTIAL
+  COMPLETED
+}
+
+enum PermissionAction {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  E_WALLET
+  OTHER
+}
+
+// ---------------------------------------------------------------------------
+// Organization & RBAC
+// ---------------------------------------------------------------------------
+
+model Branch {
+  id        Int          @id @default(autoincrement())
+  code      String       @unique @db.VarChar(50)
+  name      String       @db.VarChar(255)
+  address   String?      @db.VarChar(500)
+  phone     String?      @db.VarChar(50)
+  status    BranchStatus @default(ACTIVE)
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  rooms        Room[]
+  userBranches UserBranch[]
+  classes      TrainingClass[]
+
+  @@map("branches")
+}
+
+model Room {
+  id       Int        @id @default(autoincrement())
+  branchId Int        @map("branch_id")
+  roomCode String     @map("room_code") @db.VarChar(50)
+  name     String?    @db.VarChar(255)
+  capacity Int
+  status   RoomStatus @default(AVAILABLE)
+
+  branch   Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  sessions Session[]
+
+  @@unique([branchId, roomCode])
+  @@index([branchId])
+  @@map("rooms")
+}
+
+model SystemUser {
+  id           Int              @id @default(autoincrement())
+  username     String           @unique @map("username") @db.VarChar(100)
+  fullName     String           @map("full_name") @db.VarChar(255)
+  email        String           @unique @db.VarChar(255)
+  phone        String?          @map("phone") @db.VarChar(50)
+  /// Bắt buộc với tài khoản đăng ký email/mật khẩu; null nếu chỉ đăng nhập Google
+  passwordHash String?          @map("password_hash") @db.VarChar(255)
+  /// Google OIDC subject (sub), liên kết 1-1 với tài khoản
+  googleSub    String?          @unique @map("google_sub") @db.VarChar(255)
+  isSuperAdmin Boolean          @default(false) @map("is_super_admin")
+  status       SystemUserStatus @default(ACTIVE)
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime?        @updatedAt @map("updated_at")
+
+  userBranches    UserBranch[]
+  userRoles       UserRole[]
+  leadsAssigned   Lead[]          @relation("LeadAssignments")
+  classesTeaching TrainingClass[]
+  auditLogs       AuditLog[]
+
+  @@map("system_users")
+}
+
+model Role {
+  id          Int     @id @default(autoincrement())
+  code        String  @unique @db.VarChar(64)
+  name        String  @db.VarChar(255)
+  description String? @db.VarChar(1000)
+
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          Int              @id @default(autoincrement())
+  resource    String           @db.VarChar(100)
+  action      PermissionAction
+  description String?          @db.VarChar(500)
+
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       Int @map("role_id")
+  permissionId Int @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId Int @map("user_id")
+  roleId Int @map("role_id")
+
+  user SystemUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model UserBranch {
+  userId   Int @map("user_id")
+  branchId Int @map("branch_id")
+
+  user   SystemUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch Branch     @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@id([userId, branchId])
+  @@index([branchId])
+  @@map("user_branches")
+}
+
+// ---------------------------------------------------------------------------
+// CRM & Students
+// ---------------------------------------------------------------------------
+
+model Parent {
+  id       Int     @id @default(autoincrement())
+  fullName String  @map("full_name") @db.VarChar(255)
+  phone    String  @db.VarChar(50)
+  email    String? @db.VarChar(255)
+  address  String? @db.VarChar(500)
+  idNumber String? @map("id_number") @db.VarChar(32)
+
+  students Student[]
+
+  @@map("parents")
+}
+
+model Student {
+  id              Int           @id @default(autoincrement())
+  studentCode     String        @unique @map("student_code") @db.VarChar(50)
+  fullName        String        @map("full_name") @db.VarChar(255)
+  dob             DateTime      @db.Date
+  gender          Gender?
+  phone           String?       @db.VarChar(50)
+  email           String?       @db.VarChar(255)
+  parentId        Int           @map("parent_id")
+  status          StudentStatus @default(ACTIVE)
+  statusChangedAt DateTime?     @map("status_changed_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  parent           Parent                 @relation(fields: [parentId], references: [id], onDelete: Restrict)
+  leadConversion   Lead?                  @relation("LeadConversion")
+  classEnrollments ClassStudent[]
+  attendances      Attendance[]
+  grades           Grade[]
+  invoices         Invoice[]
+  statusHistory    StudentStatusHistory[]
+
+  @@index([parentId])
+  @@map("students")
+}
+
+model StudentStatusHistory {
+  id         Int            @id @default(autoincrement())
+  studentId  Int            @map("student_id")
+  fromStatus StudentStatus? @map("from_status")
+  toStatus   StudentStatus  @map("to_status")
+  reason     String?        @db.VarChar(2000)
+  createdAt  DateTime       @default(now()) @map("created_at")
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@map("student_status_history")
+}
+
+model Lead {
+  id                 Int        @id @default(autoincrement())
+  fullName           String     @map("full_name") @db.VarChar(255)
+  phone              String     @db.VarChar(50)
+  email              String?    @db.VarChar(255)
+  source             String?    @db.VarChar(100)
+  status             LeadStatus @default(NEW)
+  assignedUserId     Int?       @map("assigned_user_id")
+  notes              String?    @db.VarChar(2000)
+  createdAt          DateTime   @default(now()) @map("created_at")
+  convertedStudentId Int?       @unique @map("converted_student_id")
+
+  assignedUser     SystemUser? @relation("LeadAssignments", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  convertedStudent Student?    @relation("LeadConversion", fields: [convertedStudentId], references: [id], onDelete: SetNull)
+
+  @@index([assignedUserId])
+  @@index([status])
+  @@map("leads")
+}
+
+// ---------------------------------------------------------------------------
+// Academics catalog
+// ---------------------------------------------------------------------------
+
+model Program {
+  id          Int           @id @default(autoincrement())
+  code        String        @unique @db.VarChar(50)
+  name        String        @db.VarChar(255)
+  description String?       @db.VarChar(2000)
+  status      CatalogStatus @default(ACTIVE)
+
+  levels Level[]
+
+  @@map("programs")
+}
+
+model Level {
+  id        Int    @id @default(autoincrement())
+  programId Int    @map("program_id")
+  code      String @db.VarChar(50)
+  name      String @db.VarChar(255)
+  sortOrder Int           @map("sort_order")
+  status    CatalogStatus @default(ACTIVE)
+
+  program Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  courses Course[]
+
+  @@unique([programId, code])
+  @@index([programId])
+  @@map("levels")
+}
+
+/// Loại lớp (master data — FR1)
+model ClassType {
+  id          Int           @id @default(autoincrement())
+  code        String        @unique @db.VarChar(50)
+  name        String        @db.VarChar(255)
+  description String?       @db.VarChar(2000)
+  status      CatalogStatus @default(ACTIVE)
+
+  @@map("class_types")
+}
+
+model Course {
+  id            Int           @id @default(autoincrement())
+  levelId       Int           @map("level_id")
+  code          String        @unique @db.VarChar(50)
+  name          String        @db.VarChar(255)
+  totalSessions Int           @map("total_sessions")
+  durationWeeks Int?          @map("duration_weeks")
+  tuitionFee    Decimal?      @map("tuition_fee") @db.Decimal(12, 2)
+  status        CatalogStatus @default(ACTIVE)
+
+  level   Level           @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  classes TrainingClass[]
+
+  @@index([levelId])
+  @@map("courses")
+}
+
+// ---------------------------------------------------------------------------
+// Classes & sessions (model name avoids reserved word `Class`)
+// ---------------------------------------------------------------------------
+
+model TrainingClass {
+  id          Int                 @id @default(autoincrement())
+  courseId    Int                 @map("course_id")
+  branchId    Int                 @map("branch_id")
+  teacherId   Int                 @map("teacher_id")
+  classCode   String              @unique @map("class_code") @db.VarChar(50)
+  maxStudents Int                 @map("max_students")
+  startDate   DateTime            @map("start_date") @db.Date
+  endDate     DateTime?           @map("end_date") @db.Date
+  status      TrainingClassStatus @default(PLANNED)
+
+  course  Course     @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  branch  Branch     @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  teacher SystemUser @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+
+  enrollments ClassStudent[]
+  sessions    Session[]
+  exams       Exam[]
+  invoices    Invoice[]
+
+  @@index([branchId])
+  @@index([courseId])
+  @@index([teacherId])
+  @@map("classes")
+}
+
+model ClassStudent {
+  id         Int                @id @default(autoincrement())
+  classId    Int                @map("class_id")
+  studentId  Int                @map("student_id")
+  enrolledAt DateTime           @default(now()) @map("enrolled_at")
+  status     ClassStudentStatus @default(ACTIVE)
+
+  trainingClass TrainingClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student       Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, studentId])
+  @@index([studentId])
+  @@map("class_students")
+}
+
+model Session {
+  id        Int           @id @default(autoincrement())
+  classId   Int           @map("class_id")
+  roomId    Int           @map("room_id")
+  startTime DateTime      @map("start_time")
+  endTime   DateTime      @map("end_time")
+  status    SessionStatus @default(NORMAL)
+  topicNote String?       @map("topic_note") @db.VarChar(1000)
+
+  trainingClass TrainingClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  room          Room          @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  attendances   Attendance[]
+
+  @@index([classId])
+  @@index([roomId])
+  @@index([startTime])
+  @@map("sessions")
+}
+
+model Attendance {
+  id        Int              @id @default(autoincrement())
+  sessionId Int              @map("session_id")
+  studentId Int              @map("student_id")
+  status    AttendanceStatus
+  note      String?          @db.VarChar(500)
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, studentId])
+  @@index([studentId])
+  @@map("attendances")
+}
+
+model Exam {
+  id            Int      @id @default(autoincrement())
+  classId       Int      @map("class_id")
+  title         String   @db.VarChar(255)
+  examType      String?  @map("exam_type") @db.VarChar(50)
+  scheduledAt   DateTime @map("scheduled_at")
+  maxScore      Decimal  @map("max_score") @db.Decimal(10, 2)
+  weightPercent Decimal? @map("weight_percent") @db.Decimal(5, 2)
+
+  trainingClass TrainingClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  grades        Grade[]
+
+  @@index([classId])
+  @@map("exams")
+}
+
+model Grade {
+  id         Int     @id @default(autoincrement())
+  examId     Int     @map("exam_id")
+  studentId  Int     @map("student_id")
+  score      Decimal @db.Decimal(10, 2)
+  gradeLabel String? @map("grade_label") @db.VarChar(20)
+  remarks    String? @db.VarChar(1000)
+
+  exam    Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, studentId])
+  @@index([studentId])
+  @@map("grades")
+}
+
+// ---------------------------------------------------------------------------
+// Finance
+// ---------------------------------------------------------------------------
+
+model Invoice {
+  id             Int                  @id @default(autoincrement())
+  invoiceNumber  String               @unique @map("invoice_number") @db.VarChar(50)
+  studentId      Int                  @map("student_id")
+  classId        Int?                 @map("class_id")
+  issueDate      DateTime             @map("issue_date") @db.Date
+  dueDate        DateTime?            @map("due_date") @db.Date
+  totalAmount    Decimal              @map("total_amount") @db.Decimal(12, 2)
+  discountAmount Decimal?             @map("discount_amount") @db.Decimal(12, 2)
+  finalAmount    Decimal              @map("final_amount") @db.Decimal(12, 2)
+  paymentStatus  InvoicePaymentStatus @default(PENDING) @map("payment_status")
+  notes          String?              @db.VarChar(2000)
+
+  student       Student        @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  trainingClass TrainingClass? @relation(fields: [classId], references: [id], onDelete: SetNull)
+  payments      Payment[]
+
+  @@index([studentId])
+  @@index([classId])
+  @@index([paymentStatus])
+  @@map("invoices")
+}
+
+model Payment {
+  id             Int           @id @default(autoincrement())
+  invoiceId      Int           @map("invoice_id")
+  amount         Decimal       @db.Decimal(12, 2)
+  paymentMethod  PaymentMethod @map("payment_method")
+  paidAt         DateTime      @map("paid_at")
+  transactionRef String?       @map("transaction_ref") @db.VarChar(100)
+  notes          String?       @db.VarChar(1000)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([paidAt])
+  @@map("payments")
+}
+
+// ---------------------------------------------------------------------------
+// System Audit
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?     @map("user_id")
+  action    String   @db.VarChar(100)
+  resource  String   @db.VarChar(100)
+  recordId  String?  @map("record_id") @db.VarChar(100)
+  details   Json?
+  ipAddress String?  @map("ip_address") @db.VarChar(50)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user SystemUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@map("audit_logs")
+}
+

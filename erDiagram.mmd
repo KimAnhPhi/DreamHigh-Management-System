@@ -1,0 +1,47 @@
+erDiagram
+    %% Core System & Organization (RBAC implementation)
+    BRANCH ||--o{ ROOM : contains
+    
+    SYSTEM_USER ||--o{ USER_BRANCH : works_at
+    BRANCH ||--o{ USER_BRANCH : assigned_to
+
+    SYSTEM_USER ||--o{ USER_ROLE : has
+    ROLE ||--o{ USER_ROLE : assigned_to
+    
+    ROLE ||--o{ ROLE_PERMISSION : grants
+    PERMISSION ||--o{ ROLE_PERMISSION : assigned_to
+    
+    %% CRM & Students
+    LEAD ||--o| STUDENT : converts_to
+    SYSTEM_USER ||--o{ LEAD : manages
+    PARENT ||--o{ STUDENT : guardians
+    
+    %% Academics Catalog
+    PROGRAM ||--o{ LEVEL : contains
+    LEVEL ||--o{ COURSE : contains
+    
+    %% Classes & Operations
+    COURSE ||--o{ CLASSES : instantiates
+    BRANCH ||--o{ CLASSES : runs
+    
+    %% Teacher role acting on SYSTEM_USER
+    SYSTEM_USER ||--o{ CLASSES : teaches
+    
+    CLASSES ||--o{ CLASS_STUDENT : enrolls
+    STUDENT ||--o{ CLASS_STUDENT : enrolled_in
+    
+    CLASSES ||--o{ SESSION : has
+    ROOM ||--o{ SESSION : held_in
+    
+    %% Assessments & Attendance
+    STUDENT ||--o{ ATTENDANCE : marks
+    SESSION ||--o{ ATTENDANCE : tracked_by
+    
+    CLASSES ||--o{ EXAM : organizes
+    EXAM ||--o{ GRADE : contains
+    STUDENT ||--o{ GRADE : receives
+    
+    %% Finance
+    STUDENT ||--o{ INVOICE : billed_for
+    CLASSES ||--o{ INVOICE : generates
+    INVOICE ||--o{ PAYMENT : has
