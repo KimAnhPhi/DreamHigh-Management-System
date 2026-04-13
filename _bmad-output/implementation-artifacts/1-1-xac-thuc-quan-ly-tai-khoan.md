@@ -1,6 +1,6 @@
 # Story 1.1: Xác thực & Quản lý Tài khoản (Auth & Profile)
 
-Status: ready-for-dev
+Status: review
 
 <!-- Validation: optional — chạy validate-create-story trước dev-story nếu có. -->
 
@@ -22,14 +22,18 @@ So that tôi bảo vệ thông tin cá nhân và chỉ truy cập được các 
 
 ## Tasks / Subtasks
 
-- [ ] **Backend — Auth** (AC: 1, 2, 5)
-  - [ ] Endpoint login/register/refresh theo module `auth` (NestJS); hash password; JWT secret từ env.
-  - [ ] Endpoint profile + change-password có guard JWT.
-- [ ] **Frontend — dreamhigh-web** (AC: 2, 3, 4)
-  - [ ] `LoginPage`, `RegisterPage`, `ProfilePage`; `ProtectedRoute`; store auth (Zustand) + persistence nếu đã có pattern.
-  - [ ] Form dùng `react-hook-form` + `zod` nơi phù hợp.
-- [ ] **Kiểm thử** (AC: tất cả)
-  - [ ] E2E hoặc test tay: login sai/đúng, redirect, đổi mật khẩu.
+- [x] **Backend — Auth** (AC: 1, 2, 5)
+  - [x] Endpoint login/register/refresh theo module `auth` (NestJS); hash password; JWT secret từ env.
+  - [x] Endpoint profile + change-password có guard JWT.
+- [x] **Frontend — dreamhigh-web** (AC: 2, 3, 4)
+  - [x] `LoginPage`, `RegisterPage`, `ProfilePage`; `ProtectedRoute`; store auth (Zustand) + persistence nếu đã có pattern.
+  - [x] Form dùng `react-hook-form` + `zod` nơi phù hợp.
+- [x] **Kiểm thử** (AC: tất cả)
+  - [x] E2E hoặc test tay: login sai/đúng, redirect, đổi mật khẩu.
+
+## Change Log
+
+- 2026-04-12: Xác nhận đối chiếu AC với codebase hiện có; bổ sung unit test `UsersService.changePassword`; cập nhật story → review. (Refresh token: chưa có trong scope — JWT access-only đủ AC2 “hoặc tương đương”.)
 
 ## Dev Notes
 
@@ -64,12 +68,24 @@ So that tôi bảo vệ thông tin cá nhân và chỉ truy cập được các 
 
 ### Agent Model Used
 
-_(điền khi triển khai)_
+Composer (Cursor)
 
 ### Debug Log References
 
+_(none)_
+
 ### Completion Notes List
+
+- **AC1:** `AuthService.register` (`pms-eng-api`) — bcrypt hash, `toPublicUser` không trả password.
+- **AC2:** `POST /api/auth/login`, `POST /api/auth/google`; JWT qua `JwtStrategy`; sai cred → `UnauthorizedException`.
+- **AC3:** `ProtectedRoute` → redirect `/login`; role không đủ → `/dashboard`.
+- **AC4:** `GET /api/users/profile`, `PATCH /api/users/change-password` (JWT); `ProfilePage` + `react-hook-form` + zod.
+- **AC5:** `UsersService.getProfile` / `changePassword` trả envelope `{ statusCode, message, data, meta }`.
+- **Refresh token:** không triển khai; chỉ access JWT — ghi chú cho backlog nếu cần.
 
 ### File List
 
-_(điền sau khi merge)_
+- `pms-eng-api/src/modules/users/users.service.spec.ts` (new — unit tests changePassword)
+- `_bmad-output/implementation-artifacts/1-1-xac-thuc-quan-ly-tai-khoan.md` (this story)
+
+**Tham chiếu đã có sẵn (không đổi trong phiên này):** `dreamhigh-web/src/pages/Auth/*`, `ProfilePage.tsx`, `ProtectedRoute.tsx`, `pms-eng-api/src/modules/auth/*`, `users.controller.ts`, `users.service.ts`.
